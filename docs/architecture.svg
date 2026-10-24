@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d97706"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="720" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="40" y="52" font-size="28" font-weight="700" fill="#0f172a">LifeLine — Architecture</text>
+  <text x="40" y="78" font-size="15" fill="#475569">AI-powered Medical Operations Coordination Center · patient load-balancing across a region</text>
+
+  <!-- AWS cloud group -->
+  <rect x="410" y="96" width="830" height="392" rx="16" fill="#fff7ed" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="430" y="120" font-size="13" font-weight="700" fill="#b45309">AWS CLOUD · us-east-1</text>
+
+  <!-- Browser -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="110" width="330" height="378" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+  </g>
+  <rect x="40" y="110" width="330" height="62" rx="14" fill="#0f172a"/>
+  <rect x="40" y="150" width="330" height="22" fill="#0f172a"/>
+  <text x="60" y="138" font-size="18" font-weight="700" fill="#ffffff">Coordinator's browser</text>
+  <text x="60" y="160" font-size="13" fill="#94a3b8">Next.js · React · Tailwind</text>
+  <g font-size="14" fill="#1e293b">
+    <text x="60" y="206">• Full-screen MapLibre map</text>
+    <text x="60" y="234">• Region picker</text>
+    <text x="74" y="254" font-size="12.5" fill="#64748b">SF &amp; Peninsula · East Bay · South Bay</text>
+    <text x="60" y="284">• AI plan panel</text>
+    <text x="74" y="304" font-size="12.5" fill="#64748b">approve · override · approve all</text>
+    <text x="60" y="334">• Before / after summary</text>
+  </g>
+  <rect x="60" y="368" width="290" height="98" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="76" y="394" font-size="13.5" font-weight="700" fill="#1d4ed8">Human in the loop</text>
+  <text x="76" y="416" font-size="12.5" fill="#1e3a8a">AI recommends every move.</text>
+  <text x="76" y="436" font-size="12.5" fill="#1e3a8a">Coordinator approves or overrides;</text>
+  <text x="76" y="456" font-size="12.5" fill="#1e3a8a">an override makes the AI recalculate.</text>
+
+  <!-- Amplify / Next.js server -->
+  <g filter="url(#shadow)">
+    <rect x="430" y="136" width="400" height="332" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+  </g>
+  <text x="452" y="168" font-size="18" font-weight="700" fill="#0f172a">AWS Amplify Hosting</text>
+  <text x="452" y="189" font-size="13" fill="#64748b">Next.js server · SSR compute</text>
+  <g font-size="13.5" fill="#1e293b">
+    <text x="452" y="222"><tspan font-family="Consolas, Menlo, monospace" font-weight="700">GET /api/state</tspan></text>
+    <text x="466" y="241" font-size="12.5" fill="#64748b">Bay Area hospitals · surge scenario</text>
+    <text x="452" y="270"><tspan font-family="Consolas, Menlo, monospace" font-weight="700">POST /api/recommend</tspan></text>
+    <text x="466" y="289" font-size="12.5" fill="#64748b">builds prompt + transport-time table</text>
+    <text x="452" y="318"><tspan font-family="Consolas, Menlo, monospace" font-weight="700">POST /api/dispatch</tspan></text>
+    <text x="466" y="337" font-size="12.5" fill="#64748b">applies approved transfers, recomputes load</text>
+  </g>
+  <rect x="452" y="362" width="356" height="86" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-dasharray="5 4"/>
+  <text x="468" y="388" font-size="13.5" font-weight="700" fill="#334155">Rule-based fallback planner</text>
+  <text x="468" y="410" font-size="12.5" fill="#475569">Same placement rules, deterministic.</text>
+  <text x="468" y="430" font-size="12.5" fill="#475569">Used only on error or a 25 s timeout.</text>
+
+  <!-- Bedrock -->
+  <g filter="url(#shadow)">
+    <rect x="890" y="136" width="330" height="332" rx="14" fill="#ffffff" stroke="#f59e0b" stroke-width="2"/>
+  </g>
+  <rect x="890" y="136" width="330" height="66" rx="14" fill="#d97706"/>
+  <rect x="890" y="180" width="330" height="22" fill="#d97706"/>
+  <text x="910" y="166" font-size="18" font-weight="700" fill="#ffffff">Amazon Bedrock</text>
+  <text x="910" y="189" font-size="13" fill="#ffedd5">Claude Sonnet 5.5 · Converse API</text>
+  <g font-size="13.5" fill="#1e293b">
+    <text x="910" y="234">• Reads hospitals, patients,</text>
+    <text x="924" y="253">transport times, overrides</text>
+    <text x="910" y="282">• Ranks transfers by patient acuity</text>
+    <text x="910" y="311">• Load-aware placement</text>
+    <text x="924" y="330" font-size="12.5" fill="#64748b">never fills a hospital that's nearly full</text>
+    <text x="910" y="359">• Equity flags for safety-net hospitals</text>
+    <text x="910" y="388">• Plain-language rationale per move</text>
+    <text x="910" y="417">• Strict JSON plan</text>
+  </g>
+
+  <!-- Arrows: browser <-> server -->
+  <line x1="370" y1="214" x2="428" y2="214" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="428" y1="262" x2="372" y2="262" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <circle cx="399" cy="196" r="11" fill="#0f172a"/><text x="399" y="201" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+  <circle cx="399" cy="282" r="11" fill="#0f172a"/><text x="399" y="287" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+
+  <!-- Arrows: server <-> Bedrock -->
+  <line x1="830" y1="250" x2="888" y2="250" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrowOrange)"/>
+  <line x1="888" y1="300" x2="832" y2="300" stroke="#d97706" stroke-width="2.5" marker-end="url(#arrowOrange)"/>
+  <circle cx="859" cy="232" r="11" fill="#d97706"/><text x="859" y="237" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+  <circle cx="859" cy="320" r="11" fill="#d97706"/><text x="859" y="325" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+
+  <!-- CARTO tiles -->
+  <g filter="url(#shadow)">
+    <rect x="40" y="528" width="330" height="80" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+  </g>
+  <text x="60" y="560" font-size="15" font-weight="700" fill="#0f172a">CARTO Positron basemap</text>
+  <text x="60" y="583" font-size="12.5" fill="#64748b">Free vector tiles · OpenStreetMap data</text>
+  <line x1="205" y1="526" x2="205" y2="492" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="214" y="514" font-size="12" fill="#64748b">map tiles</text>
+
+  <!-- GitHub CI/CD -->
+  <g filter="url(#shadow)">
+    <rect x="430" y="528" width="400" height="80" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+  </g>
+  <text x="452" y="560" font-size="15" font-weight="700" fill="#0f172a">GitHub · main branch</text>
+  <text x="452" y="583" font-size="12.5" fill="#64748b">Every push auto-builds and redeploys on Amplify</text>
+  <line x1="630" y1="526" x2="630" y2="470" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="640" y="508" font-size="12" fill="#64748b">CI/CD</text>
+
+  <!-- Flow legend -->
+  <rect x="890" y="528" width="330" height="80" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+  <g font-size="12.5" fill="#1e293b">
+    <text x="906" y="552"><tspan font-weight="700">1</tspan>  Region snapshot + coordinator overrides</text>
+    <text x="906" y="571"><tspan font-weight="700">2</tspan>  Converse request with transport table</text>
+    <text x="906" y="590"><tspan font-weight="700">3</tspan>  JSON plan: transfers, rationale, equity</text>
+  </g>
+
+  <!-- Footer loop -->
+  <rect x="40" y="636" width="1180" height="52" rx="12" fill="#0f172a"/>
+  <text x="640" y="668" font-size="15" fill="#e2e8f0" text-anchor="middle"><tspan font-weight="700" fill="#38bdf8">Loop:</tspan>  surge detected  →  coordinator selects region  →  Bedrock plans transfers  →  <tspan font-weight="700">4</tspan> plan shown  →  approve / override  →  dispatch  →  region rebalanced</text>
+</svg>

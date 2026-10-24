@@ -75,40 +75,26 @@ Bedrock is the reasoning engine at the center of LifeLine — the brain the MOCC
 
 | Capability | What Bedrock does | Why it matters |
 |---|---|---|
-| **Imbalance detection** | Reads every hospital's live ICU/ventilator/staffing status and classifies each as critical, strained, or healthy with capacity. | Turns scattered, unreadable status into a single regional picture. |
+| **Load-aware placement** | Matches each patient to a capable hospital, spreading load so no receiving hospital is pushed to full while others nearby have room. | Prevents the rebalance from creating a new overloaded hospital. |
 | **Transfer recommendation** | Reasons over patient acuity + receiving-hospital capability + transport feasibility to produce a ranked list of specific patient moves, each with a human-readable rationale. | The coordinator can trust, defend, and act on the plan. Explainability is a safety requirement in crisis triage. |
 | **Equity reasoning** | Detects when under-resourced facilities are absorbing a disproportionate share of the overload and prioritizes decompressing them. | Directly addresses the documented equity failure of ad-hoc COVID rationing. |
 | **Live recalculation** | When the coordinator overrides a transfer, re-reasons the downstream effect on remaining placements. | Keeps a human in the loop — the research shows pure algorithmic rationing fails. |
-| **Handoff note (optional)** | Generates a clean clinical handoff summary for the receiving hospital per transfer. | Closes the last mile of a safe transfer. |
 
-> Model: Anthropic Claude on Amazon Bedrock, via the Bedrock Runtime `Converse` API. Optionally grounded with an **Amazon Bedrock Knowledge Base** containing crisis-standards-of-care and load-balancing protocols.
+> Model: Claude Sonnet 5.5 on Amazon Bedrock (`us.anthropic.claude-sonnet-5-5`, cross-region inference profile), called through the Bedrock Runtime `Converse` API from the Next.js server. Bedrock receives a precomputed transport-time table so it reasons about placement, not geometry.
 
 ---
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                   Frontend (Next.js / React)                   │
-│   Regional map · hospital status · AI transfer plan · review   │
-└───────────────────────────────┬──────────────────────────────┘
-                                 │  HTTPS (fetch)
-                                 ▼
-┌──────────────────────────────────────────────────────────────┐
-│                  API layer (Next.js API routes)               │
-│     /api/detect     /api/recommend     /api/handoff           │
-└───────────────┬───────────────────────────────┬──────────────┘
-                │                                 │
-                ▼                                 ▼
-┌───────────────────────────────┐   ┌───────────────────────────┐
-│       Amazon Bedrock          │   │   Data (seeded JSON /      │
-│  Claude — detect, recommend,  │   │   in-memory store)         │
-│  equity, recalculate, handoff │   │  hospitals · patients ·    │
-│  (+ optional Knowledge Base)  │   │  incidents · capacity      │
-└───────────────────────────────┘   └───────────────────────────┘
-```
+![LifeLine architecture: coordinator's browser, Next.js server on AWS Amplify, Amazon Bedrock (Claude Sonnet 5.5), CARTO basemap, GitHub CI/CD](docs/architecture.svg)
 
-**Flow:** The dashboard calls a Next.js API route → the route loads hospital and patient state → Amazon Bedrock performs the detection, recommendation, and equity reasoning → the plan is returned to the coordinator for review and dispatch.
+**Flow:**
+1. The coordinator selects a region. The browser sends that region's hospitals, patients and any overrides to `POST /api/recommend`.
+2. The Next.js server on AWS Amplify builds the prompt plus a precomputed transport-time table and calls Claude Sonnet 5.5 through the Bedrock Converse API.
+3. Bedrock returns a strict-JSON plan: ranked transfers, a rationale for each, and equity flags.
+4. The coordinator approves or overrides each move (an override triggers a recalculation), then dispatches via `POST /api/dispatch`.
+
+If Bedrock errors or takes longer than 25 seconds, a deterministic rule-based planner with the same rules produces the plan instead, and the UI labels it as the fallback.
 
 > **What is real vs. simulated:** Hospital capacity data is simulated (seeded, toggleable) because live multi-hospital feeds are the hard real-world integration, not buildable in the hackathon window. The **Bedrock reasoning is fully real** — it reads the actual patient and capacity state and produces the transfer plan, justifications, and equity flags. That reasoning is the core of the product.
 
@@ -118,8 +104,8 @@ Bedrock is the reasoning engine at the center of LifeLine — the brain the MOCC
 
 | Layer | Technology |
 |---|---|
-| AI / reasoning | **Amazon Bedrock** (Anthropic Claude) |
-| Knowledge grounding (optional) | **Amazon Bedrock Knowledge Base** |
+| AI / reasoning | **Amazon Bedrock** (Claude Sonnet 5.5, Converse API) |
+| Hosting / CI/CD | **AWS Amplify Hosting** (Next.js SSR, auto-deploy from GitHub `main`) |
 | App + API | **Next.js** (App Router, API routes) |
 | UI | React, Tailwind CSS |
 | Map | MapLibre GL + CARTO Positron basemap (OpenStreetMap data) |
@@ -130,15 +116,14 @@ Bedrock is the reasoning engine at the center of LifeLine — the brain the MOCC
 
 ## Project Status
 
-- [ ] Project scaffold (Next.js + Tailwind)
-- [ ] Seed data (hospitals, patients, incidents)
-- [ ] Bedrock client + prompt design
-- [ ] `/api/recommend` — transfer recommendation endpoint
-- [ ] Regional map + hospital status UI
-- [ ] AI recommendation panel + approve/override
-- [ ] Surge simulation + rebalance animation
-- [ ] Equity flag + handoff note (stretch)
-- [ ] End-to-end demo scenario
+- [x] Next.js + Tailwind app, deployed on AWS Amplify (auto-deploy from `main`)
+- [x] Bay Area seed data: 3 coordination regions, 19 hospitals, surge scenario
+- [x] Bedrock (Claude Sonnet 5.5) transfer planning with rationale and equity flags
+- [x] Load-aware placement, with a rule-based fallback that follows the same rules
+- [x] Full-screen MapLibre map, region selection, animated transfer arcs
+- [x] Approve / override (AI recalculates) / approve all / dispatch, with before/after summary
+- [ ] Clinical handoff note per transfer (stretch, not built)
+- [ ] Live hospital capacity feeds (real-world integration, out of scope)
 
 ---
 
@@ -150,22 +135,27 @@ Bedrock is the reasoning engine at the center of LifeLine — the brain the MOCC
 # 1. Install dependencies
 npm install
 
-# 2. Configure environment
-cp .env.example .env
-#   set AWS_REGION, BEDROCK_MODEL_ID, and AWS credentials
+# 2. Configure environment (optional: without credentials the app
+#    runs on the rule-based fallback planner)
+cp .env.example .env.local
+#   set BEDROCK_REGION, BEDROCK_MODEL_ID, and AWS credentials
 
-# 3. Run the app
+# 3. Run the app (also copies MapLibre's web worker into public/)
 npm run dev
 #   open http://localhost:3000
 ```
+
+On Windows PowerShell, use `npm.cmd` instead of `npm`.
 
 ### Environment variables
 
 | Variable | Description |
 |---|---|
-| `AWS_REGION` | Region where Bedrock model access is enabled (e.g. `us-east-1`) |
-| `BEDROCK_MODEL_ID` | e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0` |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (or use an AWS profile / SSO) |
+| `BEDROCK_REGION` | Region for Bedrock (default `us-east-1`) |
+| `BEDROCK_MODEL_ID` | Default `us.anthropic.claude-sonnet-5-5`; must be enabled in your account |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | AWS credentials (or `AWS_PROFILE`) |
+
+Hosting on AWS Amplify: see [SETUP.md](SETUP.md#7-deploying-to-aws-amplify).
 
 
 ---
