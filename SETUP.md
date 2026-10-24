@@ -44,7 +44,25 @@ Change it together — it defines every hospital, patient, and API shape.
 3. Siddharth tunes the Bedrock prompt in `src/lib/bedrock.ts` and tests with real creds.
 4. Integrate, run the full surge → rebalance → dispatch flow, record the demo.
 
-## 7. Bedrock notes (Siddharth)
+## 7. Deploying to AWS Amplify
+
+One-time setup, from a terminal that has AWS credentials and the AWS CLI:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\deploy-amplify.ps1
+```
+
+Run it in the terminal where you set the `$Env:AWS_...` credentials. It creates an Amplify app that builds `main` on every push and passes those **temporary** credentials to the hosted app so it can call Bedrock (the workshop account can't create IAM roles). It prompts for a GitHub personal access token (used once, not stored) and an optional site password. After that, deploying is just `git push`.
+
+When the workshop session expires, the hosted badge shows "Rule-based fallback". Get fresh credentials, set them in a terminal, and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\refresh-creds.ps1
+```
+
+Tear down: `aws amplify delete-app --region us-east-1 --app-id <id>`.
+
+## 8. Bedrock notes (Siddharth)
 
 - Uses the Bedrock Runtime **`Converse`** API via `@aws-sdk/client-bedrock-runtime`.
 - Model id is set by `BEDROCK_MODEL_ID`. Make sure that exact model is **enabled** in the Bedrock console for your `AWS_REGION`.

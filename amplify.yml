@@ -7,10 +7,11 @@ frontend:
     build:
       commands:
         # Amplify console env vars are only visible at build time. Write the
-        # BEDROCK_* ones into .env.production so the Next.js server (API
-        # routes) can read them at runtime. No secrets here: credentials come
-        # from the Amplify IAM compute role.
-        - env | grep -e BEDROCK_ >> .env.production || true
+        # BEDROCK_* and TF_* ones into .env.production so the Next.js server
+        # (API routes) can read them at runtime. TF_* holds temporary AWS
+        # credentials (see scripts/deploy-amplify.ps1); server-side only,
+        # never sent to the browser.
+        - env | grep -E '^(BEDROCK_|TF_)' >> .env.production || true
         - npm run build
   artifacts:
     baseDirectory: .next

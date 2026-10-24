@@ -125,8 +125,17 @@ See `.env.example`. None are required to run (fallback mode). For real Bedrock:
 | `BEDROCK_MODEL_ID` | Must be an **enabled**, non-EOL model/inference profile. Default: `us.anthropic.claude-haiku-4-5-20251001-v1:0`. |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | Local dev. Or set `AWS_PROFILE`. |
 | `BEDROCK_ENABLED` | `true` when credentials come from an IAM role (Amplify/Lambda) with no env keys. |
+| `TF_ACCESS_KEY_ID` / `TF_SECRET_ACCESS_KEY` / `TF_SESSION_TOKEN` | Hosted only. Explicit credentials for Amplify, which blocks the `AWS_` prefix. Set by `scripts/deploy-amplify.ps1`; temporary, they expire. |
 
-The Bedrock call runs if `BEDROCK_ENABLED=true`, `AWS_ACCESS_KEY_ID`, or `AWS_PROFILE` is set; any Bedrock error falls back to `mockPlanner`.
+The Bedrock call runs if `BEDROCK_ENABLED=true`, `TF_ACCESS_KEY_ID`, `AWS_ACCESS_KEY_ID`, or `AWS_PROFILE` is set; any Bedrock error falls back to `mockPlanner`.
+
+### Hosting (AWS Amplify)
+
+The workshop account can't create IAM roles, and its only passable role (`WSParticipantRole`) doesn't trust any AWS service. So the hosted app runs on the participant's **temporary** credentials, passed as `TF_*` env vars and written to `.env.production` at build time by `amplify.yml`.
+
+- Deploy: `scripts/deploy-amplify.ps1` (one-time; then every push to `main` redeploys).
+- When the session expires, the hosted badge flips to "Rule-based fallback". Run `scripts/refresh-creds.ps1` with fresh credentials.
+- Never reference `TF_*` from client components. They must stay server-side.
 
 ---
 

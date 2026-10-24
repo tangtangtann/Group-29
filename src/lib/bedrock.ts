@@ -41,9 +41,27 @@ const MODEL_ID =
 function bedrockConfigured(): boolean {
   return Boolean(
     process.env.BEDROCK_ENABLED === "true" ||
+      process.env.TF_ACCESS_KEY_ID ||
       process.env.AWS_ACCESS_KEY_ID ||
       process.env.AWS_PROFILE
   );
+}
+
+/**
+ * Explicit credentials for hosts that block the AWS_ env prefix (Amplify).
+ * Set TF_ACCESS_KEY_ID / TF_SECRET_ACCESS_KEY / TF_SESSION_TOKEN there.
+ * Returns undefined otherwise, so the SDK uses its default chain
+ * (AWS_* env vars, profile, or an IAM role).
+ */
+function explicitCredentials() {
+  const accessKeyId = process.env.TF_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.TF_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) return undefined;
+  return {
+    accessKeyId,
+    secretAccessKey,
+    sessionToken: process.env.TF_SESSION_TOKEN || undefined,
+  };
 }
 
 /** Instruction that frames Claude as the MOCC reasoning engine. */
@@ -110,7 +128,10 @@ export async function recommendWithBedrock(
   }
 
   try {
-    const client = new BedrockRuntimeClient({ region: REGION });
+    const client = new BedrockRuntimeClient({
+      region: REGION,
+      credentials: explicitCredentials(),
+    });
 
     const messages: Message[] = [
       {
