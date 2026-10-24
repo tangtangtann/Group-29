@@ -54,8 +54,20 @@ export default function Home() {
     }
   }
 
-  function approve(patientId: string) {
-    setApproved((prev) => new Set(prev).add(patientId));
+  // function approve(patientId: string) {. ///Replacing Approve function
+  //   setApproved((prev) => new Set(prev).add(patientId));
+  // }
+
+  function toggleApprove(patientId: string) {
+    setApproved((prev) => {
+      const next = new Set(prev);
+      if (next.has(patientId)) {
+        next.delete(patientId); // un-approve — coordinator changed their mind
+      } else {
+        next.add(patientId);
+      }
+      return next;
+    });
   }
 
   function override(patientId: string, toHospitalId: string) {
@@ -163,7 +175,8 @@ export default function Home() {
             plan={plan}
             hospitals={hospitals}
             approved={approved}
-            onApprove={approve}
+            // onApprove={approve}
+            onApprove={toggleApprove}
             onOverride={override}
             loading={loading}
           />

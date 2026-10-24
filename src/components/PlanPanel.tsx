@@ -131,12 +131,22 @@ function TransferCard({
       <p className="mt-2 text-xs text-slate-400">{t.rationale}</p>
 
       <div className="mt-3 flex items-center gap-2">
-        <button
+        {/* <button //Change Approve button
           onClick={onApprove}
           disabled={approved}
           className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-40"
         >
           Approve
+        </button> */}
+        <button
+          onClick={onApprove}
+          className={`rounded-md px-3 py-1 text-xs font-medium text-white ${
+            approved
+              ? "bg-slate-600 hover:bg-slate-500"
+              : "bg-green-600 hover:bg-green-500"
+          }`}
+        >
+          {approved ? "Undo approval" : "Approve"}
         </button>
         <select
           value={t.toHospitalId}
