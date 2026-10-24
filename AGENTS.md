@@ -121,9 +121,12 @@ See `.env.example`. None are required to run (fallback mode). For real Bedrock:
 
 | Var | Notes |
 |---|---|
-| `AWS_REGION` | Region where Bedrock model access is enabled. |
-| `BEDROCK_MODEL_ID` | Must be an **enabled** model in that region. |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Or set `AWS_PROFILE` instead. |
+| `BEDROCK_REGION` | Region for Bedrock. Falls back to `AWS_REGION`, then `AWS_DEFAULT_REGION`, then `us-east-1`. |
+| `BEDROCK_MODEL_ID` | Must be an **enabled**, non-EOL model/inference profile. Default: `us.anthropic.claude-haiku-4-5-20251001-v1:0`. |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | Local dev. Or set `AWS_PROFILE`. |
+| `BEDROCK_ENABLED` | `true` when credentials come from an IAM role (Amplify/Lambda) with no env keys. |
+
+The Bedrock call runs if `BEDROCK_ENABLED=true`, `AWS_ACCESS_KEY_ID`, or `AWS_PROFILE` is set; any Bedrock error falls back to `mockPlanner`.
 
 ---
 

@@ -19,10 +19,32 @@ import type {
 } from "./types";
 import { planRebalance } from "./mockPlanner";
 
-const REGION = process.env.AWS_REGION || "us-east-1";
+// BEDROCK_REGION works on Amplify (which reserves the AWS_ prefix);
+// AWS_REGION / AWS_DEFAULT_REGION cover local shells and the AWS CLI convention.
+const REGION =
+  process.env.BEDROCK_REGION ||
+  process.env.AWS_REGION ||
+  process.env.AWS_DEFAULT_REGION ||
+  "us-east-1";
+
+// Cross-region inference profile ID. Older Claude IDs reach end-of-life on
+// Bedrock; confirm this one is enabled in your account, or override it.
 const MODEL_ID =
   process.env.BEDROCK_MODEL_ID ||
-  "anthropic.claude-3-5-sonnet-20240620-v1:0";
+  "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+
+/**
+ * Call Bedrock only when credentials are likely present. On Amplify/Lambda
+ * credentials come from an IAM role (no env keys), so BEDROCK_ENABLED=true
+ * forces the real call there. Any Bedrock error still falls back to the mock.
+ */
+function bedrockConfigured(): boolean {
+  return Boolean(
+    process.env.BEDROCK_ENABLED === "true" ||
+      process.env.AWS_ACCESS_KEY_ID ||
+      process.env.AWS_PROFILE
+  );
+}
 
 /** Instruction that frames Claude as the MOCC reasoning engine. */
 const SYSTEM_PROMPT = `You are the reasoning engine for a Medical Operations Coordination Center (MOCC).
@@ -83,7 +105,7 @@ export async function recommendWithBedrock(
   overrides: Record<string, string> = {}
 ): Promise<RecommendResponse> {
   // No credentials configured → use the deterministic mock so the app still works.
-  if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) {
+  if (!bedrockConfigured()) {
     return planRebalance(hospitals, patients, overrides);
   }
 
