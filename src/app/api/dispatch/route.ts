@@ -9,7 +9,7 @@ import type {
   Patient,
   TransferRecommendation,
 } from "@/lib/types";
-import { icuLoadPercent } from "@/lib/types";
+import { icuLoadPercent, isOverCapacity } from "@/lib/types";
 
 interface Body {
   hospitals: Hospital[];
@@ -46,12 +46,13 @@ export async function POST(request: Request) {
     0
   );
 
-  // Patients still stuck in an over-capacity hospital.
-  const unplacedCount = updatedPatients.filter(
-    (p) =>
-      p.stableForTransfer &&
-      icuLoadPercent(hById[p.currentHospitalId]) >= 100
-  ).length;
+  // Patients still stuck in an over-capacity hospital. A full (100%)
+  // hospital is not over capacity, so a patient just placed there counts
+  // as placed.
+  const unplacedCount = updatedPatients.filter((p) => {
+    const h = hById[p.currentHospitalId];
+    return p.stableForTransfer && h !== undefined && isOverCapacity(h);
+  }).length;
 
   const body: DispatchResponse = {
     hospitals: updatedHospitals,

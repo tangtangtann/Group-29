@@ -28,7 +28,7 @@ $Region  = "us-east-1"
 $AppName = "triageflow"
 $Repo    = "https://github.com/tangtangtann/Group-29"
 $Branch  = "main"
-$ModelId = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+$ModelId = "us.anthropic.claude-sonnet-5-5"
 
 function Invoke-Aws {
     # Runs the AWS CLI and stops the script on any failure.

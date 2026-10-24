@@ -83,9 +83,9 @@ This file is the single source of truth between backend and frontend. **Do not c
 
 Core types: `Hospital`, `Patient`, `TransferRecommendation`, `EquityFlag`.
 API shapes: `StateResponse`, `RecommendRequest` / `RecommendResponse`, `DispatchRequest` / `DispatchResponse`.
-Helpers (use these, don't recompute): `icuLoadPercent(h)`, `loadStatus(h)` → `healthy|strained|critical`, `freeIcuBeds(h)`.
+Helpers (use these, don't recompute): `icuLoadPercent(h)`, `isOverCapacity(h)`, `loadStatus(h)` → `healthy|strained|critical`, `freeIcuBeds(h)`.
 
-Load color rule: `>= 100%` critical (red), `>= 85%` strained (yellow), else healthy (green).
+Load color rule: over capacity (`icuOccupied > icuTotal`) is critical (red); `>= 85%` including exactly 100% (full) is strained (yellow); else healthy (green). Never test "over capacity" with `icuLoadPercent(h) >= 100`. Full and overloaded must stay distinct; use `isOverCapacity`.
 
 ---
 
@@ -93,10 +93,11 @@ Load color rule: `>= 100%` critical (red), `>= 85%` strained (yellow), else heal
 
 `src/lib/bedrock.ts` sends region state to Claude and expects **strict JSON** back matching `{ transfers, equityFlags, summary }`. Rules enforced by the system prompt:
 
-- Only move patients with `stableForTransfer: true` currently in an **over-capacity** hospital (`icuOccupied >= icuTotal`).
+- Only move patients with `stableForTransfer: true` currently in an **over-capacity** hospital (`icuOccupied > icuTotal`; exactly full is not over).
 - A receiving hospital must have free ICU beds **and** all of the patient's required `needs` (capabilities).
 - Don't exceed a receiving hospital's free beds across the whole plan.
-- Higher `acuity` (5 = most critical) moves first; prefer shorter transport.
+- Higher `acuity` (5 = most critical) moves first.
+- **Load-aware placement:** never take a hospital's last free bed if another capable hospital has 2+; among capable hospitals within 15 min (`LOAD_WINDOW_MIN`) of the closest, pick the lowest load after the move, ties by shorter transport. Transport = `max(6, round(0.8 × grid distance))`.
 - **Equity:** if an `underResourced` hospital is over capacity while better-resourced ones have room, prioritize it and emit an `EquityFlag`.
 - Every transfer needs a human-readable `rationale`.
 
@@ -122,7 +123,8 @@ See `.env.example`. None are required to run (fallback mode). For real Bedrock:
 | Var | Notes |
 |---|---|
 | `BEDROCK_REGION` | Region for Bedrock. Falls back to `AWS_REGION`, then `AWS_DEFAULT_REGION`, then `us-east-1`. |
-| `BEDROCK_MODEL_ID` | Must be an **enabled**, non-EOL model/inference profile. Default: `us.anthropic.claude-haiku-4-5-20251001-v1:0`. |
+| `BEDROCK_MODEL_ID` | Must be an **enabled**, non-EOL model/inference profile. Default: `us.anthropic.claude-sonnet-5-5`. Change it in `bedrock.ts` and both `scripts/*.ps1`. |
+| `BEDROCK_TIMEOUT_MS` | Optional, default `25000`. Bedrock calls abort after this and fall back, staying under Amplify's ~30s request limit. |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | Local dev. Or set `AWS_PROFILE`. |
 | `BEDROCK_ENABLED` | `true` when credentials come from an IAM role (Amplify/Lambda) with no env keys. |
 | `TF_ACCESS_KEY_ID` / `TF_SECRET_ACCESS_KEY` / `TF_SESSION_TOKEN` | Hosted only. Explicit credentials for Amplify, which blocks the `AWS_` prefix. Set by `scripts/deploy-amplify.ps1`; temporary, they expire. |

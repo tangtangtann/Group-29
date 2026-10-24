@@ -12,7 +12,7 @@ import type {
   StateResponse,
   DispatchResponse,
 } from "@/lib/types";
-import { icuLoadPercent } from "@/lib/types";
+import { isOverCapacity } from "@/lib/types";
 
 export default function Home() {
   const [incident, setIncident] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export default function Home() {
   }
 
   const criticalCount = useMemo(
-    () => hospitals.filter((h) => icuLoadPercent(h) >= 100).length,
+    () => hospitals.filter(isOverCapacity).length,
     [hospitals]
   );
 

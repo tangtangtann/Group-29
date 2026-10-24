@@ -12,7 +12,7 @@ $ErrorActionPreference = "Continue"
 $Region  = "us-east-1"
 $AppName = "triageflow"
 $Branch  = "main"
-$ModelId = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+$ModelId = "us.anthropic.claude-sonnet-5-5"
 
 function Invoke-Aws {
     $out = & aws @args 2>&1

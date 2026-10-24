@@ -185,8 +185,8 @@ export default function RegionMap({
       {/* legend */}
       <div className="absolute bottom-3 left-3 flex flex-wrap gap-3 rounded-lg bg-slate-800/80 px-3 py-2 text-xs backdrop-blur">
         <Legend color={COLORS.healthy} label="Healthy <85%" />
-        <Legend color={COLORS.strained} label="Strained 85–99%" />
-        <Legend color={COLORS.critical} label="Critical 100%+" />
+        <Legend color={COLORS.strained} label="Strained 85–100%" />
+        <Legend color={COLORS.critical} label="Over capacity >100%" />
         <Legend color={EQUITY_COLOR} label="Safety-net" ring />
       </div>
     </div>

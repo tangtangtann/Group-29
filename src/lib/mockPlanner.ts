@@ -5,6 +5,12 @@
 //   2. the mock the frontend builds against before the AI is wired.
 // The REAL reasoning lives in the Bedrock call (see src/lib/bedrock.ts).
 // This mock keeps the UI fully functional without AWS credentials.
+//
+// Placement rules (keep in sync with SYSTEM_PROMPT in bedrock.ts):
+//   - Only decompress hospitals that are OVER capacity (occupied > total).
+//   - Never use a hospital's last free bed if another capable hospital has 2+.
+//   - Among capable hospitals within LOAD_WINDOW_MIN of the closest option,
+//     pick the one with the lowest ICU load after the move; tie → shorter trip.
 // =============================================================================
 
 import type {
@@ -15,7 +21,10 @@ import type {
   EquityFlag,
   Capability,
 } from "./types";
-import { freeIcuBeds, icuLoadPercent } from "./types";
+import { freeIcuBeds, icuLoadPercent, isOverCapacity } from "./types";
+
+/** Extra transport minutes we accept to reach a less-loaded hospital. */
+export const LOAD_WINDOW_MIN = 15;
 
 function hasCapabilities(h: Hospital, needs: Capability[]): boolean {
   return needs.every((n) => h.capabilities.includes(n));
@@ -28,7 +37,7 @@ function distance(a: Hospital, b: Hospital): number {
 }
 
 /** Rough transport-minute estimate from grid distance. */
-function transportMinutes(a: Hospital, b: Hospital): number {
+export function transportMinutes(a: Hospital, b: Hospital): number {
   return Math.max(6, Math.round(distance(a, b) * 0.8));
 }
 
@@ -37,16 +46,23 @@ export function planRebalance(
   patients: Patient[],
   overrides: Record<string, string> = {}
 ): RecommendResponse {
-  // Work on copies so we can decrement capacity as we assign.
+  // Track beds and occupancy as we assign, so later picks see earlier ones.
   const beds: Record<string, number> = {};
-  for (const h of hospitals) beds[h.id] = freeIcuBeds(h);
+  const occupied: Record<string, number> = {};
+  for (const h of hospitals) {
+    beds[h.id] = freeIcuBeds(h);
+    occupied[h.id] = h.icuOccupied;
+  }
 
   const byId: Record<string, Hospital> = {};
   for (const h of hospitals) byId[h.id] = h;
 
-  // Only move patients who are stable and sitting in an overloaded hospital.
+  const loadAfterMove = (h: Hospital) =>
+    h.icuTotal === 0 ? Infinity : (occupied[h.id] + 1) / h.icuTotal;
+
+  // Only move stable patients sitting in an over-capacity hospital.
   const overloaded = new Set(
-    hospitals.filter((h) => icuLoadPercent(h) >= 100).map((h) => h.id)
+    hospitals.filter(isOverCapacity).map((h) => h.id)
   );
 
   const candidates = patients
@@ -59,27 +75,40 @@ export function planRebalance(
 
   for (const p of candidates) {
     const from = byId[p.currentHospitalId];
+    let target: Hospital | undefined;
+    let rationale = "";
 
     // honor a coordinator override if present and valid
-    let target: Hospital | undefined;
     const forced = overrides[p.id];
     if (forced && byId[forced] && beds[forced] > 0) {
       target = byId[forced];
+      rationale = `Coordinator override: ${target.name}. It has ICU capacity for this patient (acuity ${p.acuity}/5, ${p.summary}).`;
     } else {
-      // pick the capable hospital with free beds and shortest transport
-      target = hospitals
-        .filter(
-          (h) =>
-            h.id !== from.id &&
-            beds[h.id] > 0 &&
-            hasCapabilities(h, p.needs)
-        )
-        .sort((a, b) => transportMinutes(from, a) - transportMinutes(from, b))[0];
+      const capable = hospitals.filter(
+        (h) => h.id !== from.id && beds[h.id] > 0 && hasCapabilities(h, p.needs)
+      );
+      // Don't take anyone's last bed while another capable hospital has room.
+      const roomy = capable.filter((h) => beds[h.id] >= 2);
+      const pool = roomy.length > 0 ? roomy : capable;
+      if (pool.length === 0) continue; // no placement available
+
+      const nearest = Math.min(...pool.map((h) => transportMinutes(from, h)));
+      target = pool
+        .filter((h) => transportMinutes(from, h) <= nearest + LOAD_WINDOW_MIN)
+        .sort(
+          (a, b) =>
+            loadAfterMove(a) - loadAfterMove(b) ||
+            transportMinutes(from, a) - transportMinutes(from, b)
+        )[0];
+
+      const endLoad = Math.round(loadAfterMove(target) * 100);
+      rationale = `${target.name} has the required capabilities (${p.needs.join(
+        ", "
+      )}) and ends at ${endLoad}% ICU load, the lowest among capable hospitals within ${LOAD_WINDOW_MIN} min of the closest option. Acuity ${p.acuity}/5: ${p.summary}.`;
     }
 
-    if (!target) continue; // no placement available
-
     beds[target.id] -= 1;
+    occupied[target.id] += 1;
 
     transfers.push({
       rank: rank++,
@@ -88,16 +117,14 @@ export function planRebalance(
       fromHospitalId: from.id,
       toHospitalId: target.id,
       transportMinutes: transportMinutes(from, target),
-      rationale: `${target.name} has ICU capacity and the required capabilities (${p.needs.join(
-        ", "
-      )}). Acuity ${p.acuity}/5 — ${p.summary}. Closest capable facility by transport time.`,
+      rationale,
       confidence: 0.7,
     });
   }
 
-  // Equity: flag under-resourced hospitals that are overloaded.
+  // Equity: flag under-resourced hospitals that are over capacity.
   const equityFlags: EquityFlag[] = hospitals
-    .filter((h) => h.underResourced && icuLoadPercent(h) >= 100)
+    .filter((h) => h.underResourced && isOverCapacity(h))
     .map((h) => ({
       hospitalId: h.id,
       message: `${h.name} is a safety-net facility running at ${icuLoadPercent(
@@ -106,8 +133,8 @@ export function planRebalance(
     }));
 
   const summary = transfers.length
-    ? `Recommended ${transfers.length} transfer(s) to decompress ${overloaded.size} overloaded facility/ies. Highest-acuity patients moved first to the closest capable hospital with open beds.`
-    : `No transfers needed — no stable patients in overloaded facilities, or no capacity available.`;
+    ? `Recommended ${transfers.length} transfer(s) to decompress ${overloaded.size} over-capacity facility/ies. Highest-acuity patients move first, spread across the least-loaded capable hospitals so no receiving hospital is pushed to full.`
+    : `No transfers needed: no stable patients in over-capacity facilities, or no capacity available.`;
 
   return { transfers, equityFlags, summary, usedBedrock: false };
 }

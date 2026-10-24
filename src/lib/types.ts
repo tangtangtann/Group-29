@@ -126,10 +126,19 @@ export function icuLoadPercent(h: Hospital): number {
   return Math.round((h.icuOccupied / h.icuTotal) * 100);
 }
 
+/**
+ * Over capacity = more ICU patients than beds (patients in hallways).
+ * Exactly 100% is "full", not over capacity. Use this everywhere instead of
+ * comparing load percent to 100, so full and overloaded stay distinct.
+ */
+export function isOverCapacity(h: Hospital): boolean {
+  return h.icuOccupied > h.icuTotal;
+}
+
+/** critical = over capacity (>100%); strained = 85-100% (includes full); else healthy. */
 export function loadStatus(h: Hospital): LoadStatus {
-  const pct = icuLoadPercent(h);
-  if (pct >= 100) return "critical";
-  if (pct >= 85) return "strained";
+  if (isOverCapacity(h)) return "critical";
+  if (icuLoadPercent(h) >= 85) return "strained";
   return "healthy";
 }
 

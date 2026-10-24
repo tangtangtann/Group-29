@@ -3,10 +3,10 @@
 "use client";
 
 import type { Hospital } from "@/lib/types";
-import { icuLoadPercent } from "@/lib/types";
+import { icuLoadPercent, isOverCapacity } from "@/lib/types";
 
 function criticalCount(hospitals: Hospital[]): number {
-  return hospitals.filter((h) => icuLoadPercent(h) >= 100).length;
+  return hospitals.filter(isOverCapacity).length;
 }
 
 function maxLoad(hospitals: Hospital[]): number {

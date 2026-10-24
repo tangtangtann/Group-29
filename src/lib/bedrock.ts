@@ -31,7 +31,12 @@ const REGION =
 // Bedrock; confirm this one is enabled in your account, or override it.
 const MODEL_ID =
   process.env.BEDROCK_MODEL_ID ||
-  "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+  "us.anthropic.claude-sonnet-5-5";
+
+// Amplify Hosting cuts SSR requests off at about 30s with a 504. Abort the
+// Bedrock call before that so the user gets the rule-based fallback instead
+// of an error. Sonnet is slower than Haiku, so this matters.
+const BEDROCK_TIMEOUT_MS = Number(process.env.BEDROCK_TIMEOUT_MS) || 25000;
 
 /**
  * Call Bedrock only when credentials are likely present. On Amplify/Lambda
@@ -70,13 +75,19 @@ During a surge, some hospitals are over capacity while others nearby have room.
 Your job: produce a patient load-balancing plan that moves the right patients to the right hospitals.
 
 Rules:
-- Only move patients who are stableForTransfer: true and currently in an OVER-CAPACITY hospital (icuOccupied >= icuTotal).
+- Only move patients who are stableForTransfer: true and currently in an OVER-CAPACITY hospital (icuOccupied > icuTotal). A hospital at exactly 100% is full, not over capacity: do not move patients out of it.
 - A receiving hospital MUST have free ICU beds (icuTotal - icuOccupied > 0) AND include ALL of the patient's required capabilities.
 - Do not exceed a receiving hospital's free beds across the whole plan (account for beds you consume as you assign).
 - Prioritize higher-acuity patients (5 is most critical) first.
-- Prefer shorter transport time when multiple hospitals qualify.
+- transportMinutes = max(6, round(0.8 * sqrt((lat1-lat2)^2 + (lng1-lng2)^2))) between the two hospitals.
+- LOAD-AWARE PLACEMENT, decided patient by patient in priority order, tracking beds you have already used:
+  1. Never use a hospital's last free bed if another capable hospital still has 2 or more free beds.
+  2. Among the remaining capable hospitals, consider those within 15 minutes of the closest one.
+  3. Pick the one with the lowest ICU load after the move ((icuOccupied + 1) / icuTotal); break ties by shorter transport.
+  The goal is to spread patients so no receiving hospital is pushed to full while others have room.
 - EQUITY: if an under-resourced / safety-net hospital is over capacity while better-resourced hospitals have room, prioritize decompressing it and raise an equity flag.
 - Keep a human in control: give a clear, plain-language rationale for every move so the coordinator can trust and defend it.
+- Be concise: each rationale is 1-2 sentences, the summary at most 3 sentences.
 
 Respond with STRICT JSON ONLY, no prose, matching this TypeScript type:
 {
@@ -147,7 +158,9 @@ export async function recommendWithBedrock(
       inferenceConfig: { maxTokens: 2000, temperature: 0.2 },
     });
 
-    const response = await client.send(command);
+    const response = await client.send(command, {
+      abortSignal: AbortSignal.timeout(BEDROCK_TIMEOUT_MS),
+    });
     const text =
       response.output?.message?.content?.find((c) => "text" in c)?.text ?? "";
 
