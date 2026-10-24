@@ -8,6 +8,89 @@
 
 html,
 body {
+  height: 100%;
   background: var(--bg);
   color: #e5e7eb;
+}
+
+/* --- Hospital map markers (built as DOM elements in RegionMap.tsx) ------- */
+.tf-marker {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.tf-dot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45);
+  font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+  color: #0b1220;
+}
+.tf-healthy .tf-dot { background: #22c55e; }
+.tf-strained .tf-dot { background: #eab308; }
+.tf-critical .tf-dot { background: #ef4444; color: #ffffff; }
+
+/* safety-net ring */
+.tf-equity::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 2px dashed #a855f7;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+/* over-capacity pulse */
+.tf-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.35);
+  animation: tf-pulse 1.2s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes tf-pulse {
+  from { transform: scale(0.8); opacity: 0.7; }
+  to { transform: scale(2.1); opacity: 0; }
+}
+
+.tf-label {
+  position: absolute;
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+  color: #0f172a;
+  font: 600 12px/1.3 ui-sans-serif, system-ui, sans-serif;
+  text-align: left;
+  pointer-events: none;
+}
+.tf-label small {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.tf-marker:focus-visible {
+  outline: 3px solid #0284c7;
+  outline-offset: 5px;
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-pulse { animation: none; }
 }

@@ -1,6 +1,6 @@
-# TriageFlow — AI-Powered Medical Operations Coordination Center
+# LifeLine — AI-Powered Medical Operations Coordination Center
 
-> When a surge overwhelms some hospitals while others nearby still have beds, TriageFlow gives a regional coordinator the real-time picture and the AI-reasoned transfer plan to rebalance patients before anyone is left to collapse.
+> When a surge overwhelms some hospitals while others nearby still have beds, LifeLine gives a regional coordinator the real-time picture and the AI-reasoned transfer plan to rebalance patients before anyone is left to collapse.
 
 Built for the **AI-Driven Automation & Critical Service Continuity** challenge, powered by **Amazon Bedrock** on AWS.
 
@@ -30,15 +30,15 @@ This exact failure is documented by the US government and peer-reviewed research
 - The imbalance was an **equity failure**: hospitals serving more Black and Medicaid patients were significantly more likely to be overloaded while other area hospitals had room ([Weill Cornell Medicine](https://research.weill.cornell.edu/about-us/news-updates/patient-transfer-systems-needed-ensure-equity-icus-overload-during-pandemic)). *Content rephrased for compliance.*
 - Where no coordinating system existed, allocation decisions defaulted to individual clinicians under extreme pressure ([*Intensive Care Medicine*, 2026](https://pubmed.ncbi.nlm.nih.gov/42272205/)). *Content rephrased for compliance.*
 
-The government's response was the **Medical Operations Coordination Center (MOCC)** — but it was run by hand. TriageFlow is the intelligence that the MOCC never had.
+The government's response was the **Medical Operations Coordination Center (MOCC)** — but it was run by hand. LifeLine is the intelligence that the MOCC never had.
 
 ---
 
 ## What We Built
 
-TriageFlow is a continuity system that detects a regional imbalance and acts to reduce harm. It is the "air traffic control" for patients across a region — a live picture of every hospital plus an AI that reasons out exactly how to rebalance the load.
+LifeLine is a continuity system that detects a regional imbalance and acts to reduce harm. It is the "air traffic control" for patients across a region — a live picture of every hospital plus an AI that reasons out exactly how to rebalance the load.
 
-When a surge hits, TriageFlow:
+When a surge hits, LifeLine:
 
 1. **Detects the imbalance** — reads live hospital status and identifies critically overloaded facilities vs. those with spare capacity.
 2. **Recommends transfers** — reasons over patient acuity, receiving-hospital capability, and transport distance to propose specific patient moves, each with a plain-language justification.
@@ -71,7 +71,7 @@ Coordinator reviews, overrides where needed (AI recalculates), dispatches
 
 ## How Amazon Bedrock Powers the AI
 
-Bedrock is the reasoning engine at the center of TriageFlow — the brain the MOCC never had. It is integral, not bolted on.
+Bedrock is the reasoning engine at the center of LifeLine — the brain the MOCC never had. It is integral, not bolted on.
 
 | Capability | What Bedrock does | Why it matters |
 |---|---|---|
@@ -122,7 +122,7 @@ Bedrock is the reasoning engine at the center of TriageFlow — the brain the MO
 | Knowledge grounding (optional) | **Amazon Bedrock Knowledge Base** |
 | App + API | **Next.js** (App Router, API routes) |
 | UI | React, Tailwind CSS |
-| Map | React Leaflet / lightweight SVG map |
+| Map | MapLibre GL + CARTO Positron basemap (OpenStreetMap data) |
 | Data | Seeded JSON + in-memory store |
 | Dev tooling | Built with **Kiro** |
 

@@ -1,4 +1,4 @@
-# TriageFlow — Setup & Team Guide
+# LifeLine — Setup & Team Guide
 
 ## 1. Prerequisites
 

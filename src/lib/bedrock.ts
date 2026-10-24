@@ -1,5 +1,5 @@
 // =============================================================================
-// BEDROCK CLIENT — TriageFlow  (owner: Siddharth)
+// BEDROCK CLIENT — LifeLine  (owner: Siddharth)
 // The core AI reasoning. Sends the region state to Claude on Amazon Bedrock
 // and parses a structured rebalancing plan back out.
 // Falls back to the deterministic mock planner if Bedrock is unavailable.
@@ -17,7 +17,9 @@ import type {
   TransferRecommendation,
   EquityFlag,
 } from "./types";
+import { isOverCapacity } from "./types";
 import { planRebalance } from "./mockPlanner";
+import { transportTable } from "./geo";
 
 // BEDROCK_REGION works on Amplify (which reserves the AWS_ prefix);
 // AWS_REGION / AWS_DEFAULT_REGION cover local shells and the AWS CLI convention.
@@ -79,7 +81,7 @@ Rules:
 - A receiving hospital MUST have free ICU beds (icuTotal - icuOccupied > 0) AND include ALL of the patient's required capabilities.
 - Do not exceed a receiving hospital's free beds across the whole plan (account for beds you consume as you assign).
 - Prioritize higher-acuity patients (5 is most critical) first.
-- transportMinutes = max(6, round(0.8 * sqrt((lat1-lat2)^2 + (lng1-lng2)^2))) between the two hospitals.
+- Transport times are given in the input as transportMinutes[fromHospitalId][toHospitalId]. Use those exact values (also in each transfer's transportMinutes); do not estimate distances yourself.
 - LOAD-AWARE PLACEMENT, decided patient by patient in priority order, tracking beds you have already used:
   1. Never use a hospital's last free bed if another capable hospital still has 2 or more free beds.
   2. Among the remaining capable hospitals, consider those within 15 minutes of the closest one.
@@ -112,6 +114,10 @@ function buildUserMessage(
       overrides,
       hospitals,
       patients,
+      transportMinutes: transportTable(
+        hospitals,
+        hospitals.filter(isOverCapacity).map((h) => h.id)
+      ),
     },
     null,
     2

@@ -56,6 +56,17 @@ try {
     Invoke-Aws amplify update-app --region $Region --app-id $appId `
         --environment-variables "file://$envFile" | Out-Null
 
+    # Amplify runs one build per branch at a time (a git push starts one).
+    # Wait for it, then rebuild so the new settings are baked in.
+    while ($true) {
+        $latest = & aws amplify list-jobs --region $Region --app-id $appId `
+            --branch-name $Branch --max-items 1 `
+            --query "jobSummaries[0].status" --output text 2>$null
+        if ($latest -notin "PENDING", "PROVISIONING", "RUNNING", "CANCELLING") { break }
+        Write-Host "Waiting for the current build to finish ($latest)..."
+        Start-Sleep -Seconds 20
+    }
+
     # Credentials are baked in at build time, so a rebuild is required.
     $jobId = Invoke-Aws amplify start-job --region $Region --app-id $appId `
         --branch-name $Branch --job-type RELEASE --query jobSummary.jobId --output text

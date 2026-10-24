@@ -1,5 +1,5 @@
 // =============================================================================
-// SHARED CONTRACT — TriageFlow
+// SHARED CONTRACT — LifeLine
 // This file is the single source of truth between Backend and Frontend.
 // Backend (Siddharth/Reshma) produces these shapes; Frontend (Nicole/Vatey)
 // renders them. Change this file together, not in isolation.
@@ -17,11 +17,24 @@ export type Capability =
 /** How loaded a hospital is. Drives the map color. */
 export type LoadStatus = "healthy" | "strained" | "critical";
 
+/**
+ * A coordination region (one MOCC's area). The coordinator selects a region
+ * and rebalancing only considers that region's hospitals.
+ */
+export interface Region {
+  id: string;
+  name: string;
+  /** Active incident description, or null when calm. */
+  incident: string | null;
+}
+
 /** A hospital in the region. */
 export interface Hospital {
   id: string;
   name: string;
-  /** For map placement. lat/lng (or x/y on an SVG map 0..100). */
+  /** Region this hospital belongs to (Region.id). */
+  regionId: string;
+  /** Real WGS84 coordinates (degrees). */
   lat: number;
   lng: number;
   /** Total ICU beds. */
@@ -79,9 +92,9 @@ export interface EquityFlag {
 // API SHAPES
 // =============================================================================
 
-/** GET /api/state → current region snapshot. */
+/** GET /api/state → snapshot of every region. */
 export interface StateResponse {
-  incident: string | null; // null = calm, otherwise description
+  regions: Region[];
   hospitals: Hospital[];
   patients: Patient[];
 }

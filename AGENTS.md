@@ -1,4 +1,4 @@
-# AGENTS.md — TriageFlow
+# AGENTS.md — LifeLine
 
 Guidance for AI coding agents (and humans) working in this repo. Read this before making changes.
 
@@ -6,7 +6,7 @@ Guidance for AI coding agents (and humans) working in this repo. Read this befor
 
 ## 1. What this project is
 
-**TriageFlow** is an AI-powered Medical Operations Coordination Center (MOCC). During a hospital surge, some facilities go over capacity while others nearby still have beds. TriageFlow shows a live regional picture and uses **Amazon Bedrock (Claude)** to recommend which patients to transfer where, with a plain-language rationale and equity flags. A human coordinator approves/overrides, then dispatches.
+**LifeLine** is an AI-powered Medical Operations Coordination Center (MOCC). During a hospital surge, some facilities go over capacity while others nearby still have beds. LifeLine shows a live regional picture and uses **Amazon Bedrock (Claude)** to recommend which patients to transfer where, with a plain-language rationale and equity flags. A human coordinator approves/overrides, then dispatches.
 
 Core loop: **Simulate surge → Rebalance with AI → Approve/Override → Dispatch → region rebalances.**
 
@@ -71,7 +71,8 @@ Key behavior: **the app is fully functional without AWS credentials.** `bedrock.
 | `src/app/api/state/route.ts` | Region snapshot endpoint. | Reshma |
 | `src/app/api/recommend/route.ts` | AI plan endpoint. | Siddharth |
 | `src/app/api/dispatch/route.ts` | Apply transfers, recompute load. | Reshma |
-| `src/components/RegionMap.tsx` | SVG map, color-coded hospitals, transfer arrows. | Nicole |
+| `src/lib/geo.ts` | Real-distance transport times (haversine), shared by planner and Bedrock. | shared |
+| `src/components/RegionMap.tsx` | Full-screen MapLibre map (CARTO Positron), DOM markers, animated transfer arcs. Client-only. | Nicole |
 | `src/components/PlanPanel.tsx` | Recommendation cards, approve/override. | Vatey |
 | `src/app/page.tsx` | Dashboard: state, controls, wiring. | Nicole & Vatey |
 
@@ -97,7 +98,7 @@ Load color rule: over capacity (`icuOccupied > icuTotal`) is critical (red); `>=
 - A receiving hospital must have free ICU beds **and** all of the patient's required `needs` (capabilities).
 - Don't exceed a receiving hospital's free beds across the whole plan.
 - Higher `acuity` (5 = most critical) moves first.
-- **Load-aware placement:** never take a hospital's last free bed if another capable hospital has 2+; among capable hospitals within 15 min (`LOAD_WINDOW_MIN`) of the closest, pick the lowest load after the move, ties by shorter transport. Transport = `max(6, round(0.8 × grid distance))`.
+- **Load-aware placement:** never take a hospital's last free bed if another capable hospital has 2+; among capable hospitals within 15 min (`LOAD_WINDOW_MIN`) of the closest, pick the lowest load after the move, ties by shorter transport. Transport = `max(6, round(4 + 1.6 × km))` from `geo.ts`; Bedrock receives these as a precomputed `transportMinutes` table instead of computing distances.
 - **Equity:** if an `underResourced` hospital is over capacity while better-resourced ones have room, prioritize it and emit an `EquityFlag`.
 - Every transfer needs a human-readable `rationale`.
 
@@ -157,7 +158,11 @@ The workshop account can't create IAM roles, and its only passable role (`WSPart
 
 ## 11. Gotchas
 
-- Map coordinates in `seed.ts` are a 0..100 SVG grid (`lat` = y, `lng` = x), **not** real geo. If switching to Leaflet, convert these.
+- Coordinates in `seed.ts` are real Bay Area lat/lng. Hospital names are fictional; capacity is simulated.
+- **Regions:** every hospital has a `regionId`. The page sends only the selected region's hospitals/patients to `/api/recommend` and `/api/dispatch`, then merges the dispatch result back into the full state.
+- MapLibre v6 renders tiles in a web worker that bundlers can't find. `scripts/copy-maplibre-worker.mjs` (run by `predev`/`prebuild`) copies it to `public/maplibre/` (gitignored), and `RegionMap.tsx` calls `setWorkerUrl` at module load. A white map with markers but no streets means the worker failed to load.
+- `RegionMap` uses MapLibre (WebGL, `window`), so `page.tsx` loads it with `next/dynamic` and `ssr: false`. Don't import it statically. Markers are DOM elements styled by `.tf-*` classes in `globals.css`.
+- The CARTO basemap is free with attribution (shown bottom-right). Don't hide the attribution control.
 - `/api/dispatch` is stateless: the client sends the current `hospitals`/`patients` snapshot and the route returns the mutated copy. There is no persistence between requests by design.
 - The `mockPlanner` and the Bedrock prompt encode the **same** rules. If you change one, change the other, or the demo behaves differently with vs. without AWS.
 - Over-capacity means `icuOccupied` can exceed `icuTotal` (e.g. patients in hallways). `freeIcuBeds` clamps to 0; load percent can exceed 100.

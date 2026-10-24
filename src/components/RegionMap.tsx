@@ -1,193 +1,300 @@
-// RegionMap — SVG map of hospitals, color-coded by load.
-// Shows animated transfer arrows when a plan is provided. Under-resourced
-// (safety-net) hospitals get an equity ring so load inequity is visible.
+// RegionMap — full-screen, draggable MapLibre map of every Bay Area hospital.
+// Light CARTO "Positron" basemap (free, no API key; attribution required).
+// - Markers are color-coded by load, pulse when over capacity, and get a
+//   dashed purple ring for safety-net (under-resourced) hospitals.
+// - Clicking a marker selects its region; hospitals outside the selected
+//   region are dimmed and the camera flies to the region.
+// - Approved transfers draw as animated arcs.
+// Must be loaded client-side only (see next/dynamic in page.tsx).
 "use client";
 
+import { useEffect, useRef } from "react";
+import {
+  Map as MapLibreMap,
+  Marker,
+  LngLatBounds,
+  setWorkerUrl,
+  type GeoJSONSource,
+} from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import type { Feature, FeatureCollection } from "geojson";
 import type { Hospital, TransferRecommendation } from "@/lib/types";
-import { icuLoadPercent, loadStatus, freeIcuBeds } from "@/lib/types";
+import { freeIcuBeds, icuLoadPercent, loadStatus } from "@/lib/types";
+import { BAY_AREA_BOUNDS } from "@/lib/seed";
 
-const COLORS: Record<string, string> = {
+// MapLibre v6 renders tiles in a web worker that bundlers can't locate.
+// scripts/copy-maplibre-worker.mjs copies it into public/ before dev/build.
+// Must run before the first Map is created.
+setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+
+const STYLE_URL =
+  "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+const SOURCE_ID = "transfers";
+
+const COLORS = {
   healthy: "#22c55e",
   strained: "#eab308",
   critical: "#ef4444",
+  equity: "#a855f7",
+  transfer: "#0284c7",
 };
 
-const EQUITY_COLOR = "#a855f7"; // purple-500 — safety-net / under-resourced
+// Marching-ants animation steps for the transfer lines (MapLibre pattern).
+const DASH_SEQUENCE: number[][] = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1],
+  [2.5, 4, 0.5], [3, 4, 0], [0, 0.5, 3, 3.5], [0, 1, 3, 3],
+  [0, 1.5, 3, 2.5], [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1],
+  [0, 3.5, 3, 0.5],
+];
+
+const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
+
+export interface MapPadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/** Curved arc between two [lng, lat] points (quadratic Bezier). */
+function arc(a: [number, number], b: [number, number], n = 48): [number, number][] {
+  const [x1, y1] = a;
+  const [x2, y2] = b;
+  const cx = (x1 + x2) / 2 - (y2 - y1) * 0.25;
+  const cy = (y1 + y2) / 2 + (x2 - x1) * 0.25;
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const u = 1 - t;
+    pts.push([
+      u * u * x1 + 2 * u * t * cx + t * t * x2,
+      u * u * y1 + 2 * u * t * cy + t * t * y2,
+    ]);
+  }
+  return pts;
+}
+
+function buildMarker(
+  h: Hospital,
+  selectedRegionId: string | null,
+  onSelect: (regionId: string) => void
+): HTMLElement {
+  const status = loadStatus(h);
+  const pct = icuLoadPercent(h);
+  const detail = `ICU ${h.icuOccupied}/${h.icuTotal} · ${freeIcuBeds(h)} free · ${pct}%`;
+
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = ["tf-marker", `tf-${status}`, h.underResourced ? "tf-equity" : ""]
+    .filter(Boolean)
+    .join(" ");
+  el.title = `${h.name}${h.underResourced ? " (safety-net)" : ""}: ${detail}`;
+  el.setAttribute("aria-label", el.title);
+
+  if (status === "critical") {
+    const pulse = document.createElement("span");
+    pulse.className = "tf-pulse";
+    el.appendChild(pulse);
+  }
+
+  const dot = document.createElement("span");
+  dot.className = "tf-dot";
+  dot.textContent = String(pct);
+  el.appendChild(dot);
+
+  // Labels only for the selected region, to keep the overview uncluttered.
+  if (selectedRegionId === h.regionId) {
+    const label = document.createElement("span");
+    label.className = "tf-label";
+    const name = document.createElement("span");
+    name.textContent = h.name + (h.underResourced ? " ⚑" : "");
+    const small = document.createElement("small");
+    small.textContent = detail;
+    label.append(name, small);
+    el.appendChild(label);
+  }
+
+  el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onSelect(h.regionId);
+  });
+  return el;
+}
 
 export default function RegionMap({
   hospitals,
+  selectedRegionId,
   transfers = [],
+  onSelectRegion,
+  padding,
 }: {
   hospitals: Hospital[];
+  selectedRegionId: string | null;
   transfers?: TransferRecommendation[];
+  onSelectRegion: (regionId: string) => void;
+  /** Screen space covered by floating panels, so the camera avoids it. */
+  padding: MapPadding;
 }) {
-  const byId: Record<string, Hospital> = {};
-  for (const h of hospitals) byId[h.id] = h;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const loadedRef = useRef(false);
+  const markersRef = useRef<Marker[]>([]);
+  const dataRef = useRef<FeatureCollection>(EMPTY);
+  const onSelectRef = useRef(onSelectRegion);
+  onSelectRef.current = onSelectRegion;
+  const paddingRef = useRef(padding);
+  paddingRef.current = padding;
 
-  const criticalCount = hospitals.filter(
-    (h) => loadStatus(h) === "critical",
-  ).length;
+  // --- Create the map once ----------------------------------------------------
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const map = new MapLibreMap({
+      container: containerRef.current,
+      style: STYLE_URL,
+      bounds: BAY_AREA_BOUNDS,
+      fitBoundsOptions: { padding: paddingRef.current },
+      attributionControl: { compact: true },
+      dragRotate: false,
+      pitchWithRotate: false,
+    });
+    map.touchZoomRotate.disableRotation();
+    mapRef.current = map;
+
+    let frame = 0;
+    let lastStep = -1;
+
+    map.on("load", () => {
+      map.addSource(SOURCE_ID, { type: "geojson", data: dataRef.current });
+      map.addLayer({
+        id: "transfer-casing",
+        type: "line",
+        source: SOURCE_ID,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.9 },
+      });
+      map.addLayer({
+        id: "transfer-line",
+        type: "line",
+        source: SOURCE_ID,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": COLORS.transfer,
+          "line-width": 3.5,
+          "line-dasharray": DASH_SEQUENCE[0],
+        },
+      });
+      map.addLayer({
+        id: "transfer-end",
+        type: "circle",
+        source: SOURCE_ID,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 5,
+          "circle-color": COLORS.transfer,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+        },
+      });
+      loadedRef.current = true;
+
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+      if (!reduceMotion) {
+        const animate = (t: number) => {
+          const step = Math.floor(t / 60) % DASH_SEQUENCE.length;
+          if (step !== lastStep) {
+            map.setPaintProperty("transfer-line", "line-dasharray", DASH_SEQUENCE[step]);
+            lastStep = step;
+          }
+          frame = requestAnimationFrame(animate);
+        };
+        frame = requestAnimationFrame(animate);
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
+      loadedRef.current = false;
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // --- Hospital markers -------------------------------------------------------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = hospitals.map((h) => {
+      const dim = selectedRegionId !== null && selectedRegionId !== h.regionId;
+      const el = buildMarker(h, selectedRegionId, (id) => onSelectRef.current(id));
+      return new Marker({ element: el, anchor: "center", opacity: dim ? "0.35" : "1" })
+        .setLngLat([h.lng, h.lat])
+        .addTo(map);
+    });
+  }, [hospitals, selectedRegionId]);
+
+  // --- Transfer arcs ----------------------------------------------------------
+  useEffect(() => {
+    const byId: Record<string, Hospital> = {};
+    for (const h of hospitals) byId[h.id] = h;
+
+    const features: Feature[] = [];
+    for (const t of transfers) {
+      const from = byId[t.fromHospitalId];
+      const to = byId[t.toHospitalId];
+      if (!from || !to) continue;
+      features.push({
+        type: "Feature",
+        properties: { patient: t.patientCode },
+        geometry: { type: "LineString", coordinates: arc([from.lng, from.lat], [to.lng, to.lat]) },
+      });
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Point", coordinates: [to.lng, to.lat] },
+      });
+    }
+    const data: FeatureCollection = { type: "FeatureCollection", features };
+    dataRef.current = data;
+
+    const source = mapRef.current?.getSource(SOURCE_ID) as GeoJSONSource | undefined;
+    if (loadedRef.current && source) source.setData(data);
+  }, [transfers, hospitals]);
+
+  // --- Camera: fly to the selected region, or the whole Bay Area -----------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const inRegion = selectedRegionId
+      ? hospitals.filter((h) => h.regionId === selectedRegionId)
+      : [];
+    if (inRegion.length > 0) {
+      const bounds = new LngLatBounds();
+      for (const h of inRegion) bounds.extend([h.lng, h.lat]);
+      map.fitBounds(bounds, { padding: paddingRef.current, maxZoom: 12, duration: 900 });
+    } else {
+      map.fitBounds(BAY_AREA_BOUNDS, { padding: paddingRef.current, duration: 900 });
+    }
+    // Only re-frame when the selection changes or hospitals first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRegionId, hospitals.length > 0]);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900">
-      {/* header strip */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-slate-100">
-            Regional view
-          </h2>
-          {criticalCount > 0 && (
-            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-300">
-              {criticalCount} over capacity
-            </span>
-          )}
-        </div>
-        <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
-          Simulated data
-        </span>
-      </div>
-
-      <svg viewBox="0 0 100 100" className="h-[520px] w-full">
-        <defs>
-          <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-            <path
-              d="M 10 0 L 0 0 0 10"
-              fill="none"
-              stroke="#1e293b"
-              strokeWidth="0.3"
-            />
-          </pattern>
-          <marker
-            id="arrow"
-            markerWidth="6"
-            markerHeight="6"
-            refX="5"
-            refY="3"
-            orient="auto"
-          >
-            <path d="M0,0 L6,3 L0,6 Z" fill="#38bdf8" />
-          </marker>
-          {/* soft shadow so nodes lift off the grid */}
-          <filter id="nodeShadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="0.3" stdDeviation="0.4" floodOpacity="0.5" />
-          </filter>
-        </defs>
-        <rect width="100" height="100" fill="url(#grid)" />
-
-        {/* transfer arrows (under nodes) */}
-        {transfers.map((t) => {
-          const from = byId[t.fromHospitalId];
-          const to = byId[t.toHospitalId];
-          if (!from || !to) return null;
-          return (
-            <line
-              key={`${t.patientId}-arrow`}
-              x1={from.lng}
-              y1={from.lat}
-              x2={to.lng}
-              y2={to.lat}
-              stroke="#38bdf8"
-              strokeWidth="0.6"
-              strokeDasharray="2 1.5"
-              markerEnd="url(#arrow)"
-              opacity="0.9"
-            >
-              <animate
-                attributeName="stroke-dashoffset"
-                from="7"
-                to="0"
-                dur="0.8s"
-                repeatCount="indefinite"
-              />
-            </line>
-          );
-        })}
-
-        {/* hospitals */}
-        {hospitals.map((h) => {
-          const status = loadStatus(h);
-          const pct = icuLoadPercent(h);
-          const free = freeIcuBeds(h);
-          const equity = h.underResourced;
-
-          return (
-            <g key={h.id}>
-              {/* critical pulse */}
-              {status === "critical" && (
-                <circle cx={h.lng} cy={h.lat} r="4.5" fill={COLORS.critical} opacity="0.25">
-                  <animate
-                    attributeName="r"
-                    from="3.5"
-                    to="6.5"
-                    dur="1.2s"
-                    repeatCount="indefinite"
-                  />
-                  <animate
-                    attributeName="opacity"
-                    from="0.35"
-                    to="0"
-                    dur="1.2s"
-                    repeatCount="indefinite"
-                  />
-                </circle>
-              )}
-
-              {/* equity ring for under-resourced hospitals */}
-              {equity && (
-                <circle
-                  cx={h.lng}
-                  cy={h.lat}
-                  r="3.5"
-                  fill="none"
-                  stroke={EQUITY_COLOR}
-                  strokeWidth="0.5"
-                  strokeDasharray="1 0.8"
-                  opacity="0.9"
-                />
-              )}
-
-              {/* node */}
-              <circle
-                cx={h.lng}
-                cy={h.lat}
-                r="2.4"
-                fill={COLORS[status]}
-                stroke="#0b1220"
-                strokeWidth="0.4"
-                filter="url(#nodeShadow)"
-              />
-
-              {/* load % pill on the node */}
-              <text
-                x={h.lng}
-                y={h.lat + 0.9}
-                fontSize="1.9"
-                fontWeight="700"
-                fill="#0b1220"
-                textAnchor="middle"
-              >
-                {pct}
-              </text>
-
-              {/* name + detail label */}
-              <text x={h.lng + 3.4} y={h.lat - 1.2} fontSize="2.6" fill="#e2e8f0">
-                {h.name}
-                {equity ? " ⚑" : ""}
-              </text>
-              <text x={h.lng + 3.4} y={h.lat + 2} fontSize="2.2" fill="#94a3b8">
-                ICU {h.icuOccupied}/{h.icuTotal} · {free} free · {pct}%
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+    <div className="absolute inset-0">
+      <div ref={containerRef} className="h-full w-full" />
 
       {/* legend */}
-      <div className="absolute bottom-3 left-3 flex flex-wrap gap-3 rounded-lg bg-slate-800/80 px-3 py-2 text-xs backdrop-blur">
+      <div className="absolute bottom-4 left-4 z-10 flex flex-wrap gap-3 rounded-xl border border-slate-700 bg-slate-900/90 px-3 py-2 text-xs shadow-lg backdrop-blur">
         <Legend color={COLORS.healthy} label="Healthy <85%" />
         <Legend color={COLORS.strained} label="Strained 85–100%" />
         <Legend color={COLORS.critical} label="Over capacity >100%" />
-        <Legend color={EQUITY_COLOR} label="Safety-net" ring />
+        <Legend color={COLORS.equity} label="Safety-net" ring />
       </div>
     </div>
   );
@@ -208,7 +315,7 @@ function Legend({
         className="inline-block h-2.5 w-2.5 rounded-full"
         style={
           ring
-            ? { border: `2px solid ${color}`, background: "transparent" }
+            ? { border: `2px dashed ${color}`, background: "transparent" }
             : { background: color }
         }
       />

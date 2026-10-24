@@ -13,6 +13,7 @@ export default function PlanPanel({
   hospitals,
   approved,
   onApprove,
+  onApproveAll,
   onOverride,
   loading,
 }: {
@@ -20,11 +21,18 @@ export default function PlanPanel({
   hospitals: Hospital[];
   approved: Set<string>;
   onApprove: (patientId: string) => void;
+  /** Approve every transfer, or clear all approvals if they're all approved. */
+  onApproveAll: () => void;
   onOverride: (patientId: string, toHospitalId: string) => void;
   loading: boolean;
 }) {
   const hById: Record<string, Hospital> = {};
   for (const h of hospitals) hById[h.id] = h;
+
+  const allApproved =
+    !!plan &&
+    plan.transfers.length > 0 &&
+    plan.transfers.every((t) => approved.has(t.patientId));
 
   if (loading) {
     return (
@@ -59,12 +67,27 @@ export default function PlanPanel({
           </span>
         </div>
         <p className="mt-2 text-xs text-slate-400">{plan.summary}</p>
+        {plan.transfers.length > 0 && (
+          <button
+            onClick={onApproveAll}
+            className={`mt-3 w-full rounded-md px-3 py-1.5 text-xs font-medium text-white ${
+              allApproved
+                ? "bg-slate-600 hover:bg-slate-500"
+                : "bg-green-600 hover:bg-green-500"
+            }`}
+          >
+            {allApproved
+              ? "Clear all approvals"
+              : `Approve all ${plan.transfers.length} transfers`}
+          </button>
+        )}
       </div>
 
+      {/* Opaque backgrounds: these float over the white map. */}
       {plan.equityFlags.map((f) => (
         <div
           key={f.hospitalId}
-          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200"
+          className="rounded-xl border border-amber-500/60 bg-amber-950 p-3 text-xs text-amber-100 shadow-lg"
         >
           ⚠️ Equity: {f.message}
         </div>
@@ -110,7 +133,7 @@ function TransferCard({
     <div
       className={`rounded-xl border p-4 ${
         approved
-          ? "border-green-500/50 bg-green-500/10"
+          ? "border-green-500/60 bg-green-950"
           : "border-slate-700 bg-slate-900"
       }`}
     >

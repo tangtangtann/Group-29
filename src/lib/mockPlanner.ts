@@ -1,5 +1,5 @@
 // =============================================================================
-// MOCK PLANNER — TriageFlow
+// MOCK PLANNER — LifeLine
 // A deterministic, rule-based rebalancer used as:
 //   1. the fallback when Bedrock is unavailable, and
 //   2. the mock the frontend builds against before the AI is wired.
@@ -22,23 +22,13 @@ import type {
   Capability,
 } from "./types";
 import { freeIcuBeds, icuLoadPercent, isOverCapacity } from "./types";
+import { transportMinutes } from "./geo";
 
 /** Extra transport minutes we accept to reach a less-loaded hospital. */
 export const LOAD_WINDOW_MIN = 15;
 
 function hasCapabilities(h: Hospital, needs: Capability[]): boolean {
   return needs.every((n) => h.capabilities.includes(n));
-}
-
-function distance(a: Hospital, b: Hospital): number {
-  const dx = a.lng - b.lng;
-  const dy = a.lat - b.lat;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-/** Rough transport-minute estimate from grid distance. */
-export function transportMinutes(a: Hospital, b: Hospital): number {
-  return Math.max(6, Math.round(distance(a, b) * 0.8));
 }
 
 export function planRebalance(

@@ -1,5 +1,7 @@
 # =============================================================================
-# deploy-amplify.ps1 — deploy TriageFlow to AWS Amplify Hosting
+# deploy-amplify.ps1 — deploy LifeLine to AWS Amplify Hosting
+# (The Amplify app itself keeps the internal name "triageflow"; renaming it
+#  would make refresh-creds.ps1 lose track of the existing app.)
 #
 # Default mode (Workshop Studio accounts, which block creating IAM roles):
 #   Copies the temporary AWS credentials from THIS terminal into the Amplify
