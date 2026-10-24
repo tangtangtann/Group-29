@@ -1,4 +1,4 @@
-// TriageFlow dashboard — wires map + AI panel + controls. (owner: Nicole & Vatey)
+// TriageFlow dashboard — wires map + AI panel + controls.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

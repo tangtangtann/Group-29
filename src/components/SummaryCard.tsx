@@ -1,4 +1,4 @@
-// SummaryCard — before/after region summary. (owner: Nicole)
+// SummaryCard — before/after region summary.
 // Appears once a dispatch resolves: shows how the region's load changed.
 "use client";
 

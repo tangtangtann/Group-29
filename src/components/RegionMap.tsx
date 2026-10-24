@@ -1,4 +1,4 @@
-// RegionMap — SVG map of hospitals, color-coded by load. (owner: Nicole)
+// RegionMap — SVG map of hospitals, color-coded by load.
 // Shows animated transfer arrows when a plan is provided. Under-resourced
 // (safety-net) hospitals get an equity ring so load inequity is visible.
 "use client";
