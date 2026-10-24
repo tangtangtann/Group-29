@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import RegionMap from "@/components/RegionMap";
 import PlanPanel from "@/components/PlanPanel";
+import SummaryCard from "@/components/SummaryCard";
 import type {
   Hospital,
   Patient,
@@ -22,6 +23,9 @@ export default function Home() {
   const [approved, setApproved] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [resolved, setResolved] = useState<DispatchResponse | null>(null);
+  // Hospital state captured just before a dispatch, for the before/after card.
+  const [beforeDispatch, setBeforeDispatch] = useState<Hospital[] | null>(null);
+  const [dispatchedCount, setDispatchedCount] = useState(0);
 
   async function loadState(surge: boolean) {
     const res = await fetch(`/api/state?surge=${surge ? 1 : 0}`);
@@ -33,6 +37,8 @@ export default function Home() {
     setOverrides({});
     setApproved(new Set());
     setResolved(null);
+    setBeforeDispatch(null);
+    setDispatchedCount(0);
   }
 
   useEffect(() => {
@@ -67,6 +73,8 @@ export default function Home() {
   async function dispatch() {
     if (!plan) return;
     const toApply = plan.transfers.filter((t) => approved.has(t.patientId));
+    setBeforeDispatch(hospitals); // snapshot for the before/after card
+    setDispatchedCount(toApply.length);
     const res = await fetch("/api/dispatch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,6 +141,14 @@ export default function Home() {
         </div>
 
         <div className="space-y-3 lg:col-span-2">
+          {resolved && beforeDispatch && (
+            <SummaryCard
+              before={beforeDispatch}
+              after={hospitals}
+              transferCount={dispatchedCount}
+            />
+          )}
+
           <div className="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900 p-4">
             <div className="text-xs text-slate-300">
               {criticalCount > 0 ? (
