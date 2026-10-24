@@ -167,18 +167,6 @@ npm run dev
 | `BEDROCK_MODEL_ID` | e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (or use an AWS profile / SSO) |
 
----
-
-## Demo Script (5-minute video)
-
-1. **The stakes (30s)** — Introduce Dr. Okonkwo and the documented COVID load-balancing failure: full hospitals beside empty ones.
-2. **The architecture (45s)** — Walk the diagram: Next.js → API routes → Amazon Bedrock.
-3. **Calm state (20s)** — Show the regional map, every hospital's live status in one place.
-4. **The surge (20s)** — Trigger the surge; three hospitals go red while others stay green. The imbalance is obvious.
-5. **Bedrock rebalance (90s)** — Click "Rebalance with AI." Show the ranked transfers, the per-move rationale, and the equity flag. Arrows animate on the map.
-6. **Human in control (45s)** — Override one transfer; Bedrock recalculates the rest live.
-7. **Resolved (20s)** — Dispatch the plan; hospitals return to green. Before/after: 3 hospitals at 150%+ → max load 92%, 0 patients unplaced, plan in seconds.
-8. **Close (10s)** — "The brain the medical coordination centers never had."
 
 ---
 
